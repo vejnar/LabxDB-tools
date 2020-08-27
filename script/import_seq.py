@@ -152,7 +152,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
             else:
                 logger.info('Rename bulk from %s to %s'%(bulk, flowcell))
                 os.rename(os.path.join(path_seq_raw, bulk), os.path.join(path_seq_raw, flowcell))
-            return flowcell
+                return flowcell
     return None
 
 def import_staging(bulk, path_seq_raw, ref_prefix='TMP_', fastq_exts=['.fastq'], dry_run=False, dbl=None, logger=None):
