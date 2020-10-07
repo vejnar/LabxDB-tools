@@ -53,55 +53,95 @@ def add_samples(samples, srp, srp_title, dbl):
         dbl.post('replicate/edit/'+str(replicate), json=[{'sra_ref':samples[ireplicate]['ref']}])
 
 def dump_sra(samples, config, dbl):
-    # Create output dir
+    # Create output directory
     path_out = os.path.join(config['path_seq_prepared'], config['project'])
     if not os.path.exists(path_out):
         os.mkdir(path_out)
-    # Dump and split SRA file(s)
-    jobs = [[run['ref'], run.get('id'), run.get('paired'), path_out, config, dbl] for sample in samples for run in sample['runs']]
+    path_out_tmp = os.path.join(path_out, 'tmp')
+    if not os.path.exists(path_out_tmp):
+        os.mkdir(path_out_tmp)
+    # Runs
+    runs = [run for sample in samples for run in sample['runs'] if len(glob.glob(os.path.join(path_out, run['ref']+'*.fastq*'))) == 0]
+    # Download
+    if not config['use_fasterq_dump']:
+        # Check all run(s) have URLs
+        for run in runs:
+            if 'sra_url' not in run:
+                raise KeyError(f'Missing URL in {run["ref"]}')
+        # Download
+        for run in runs:
+            path_sra = os.path.join(path_out_tmp, run['ref'])
+            if os.path.exists(path_sra) and os.path.getsize(path_sra) == run['sra_size']:
+                print('Already downloaded', run['ref'])
+            else:
+                print('Download', run['ref'])
+                subprocess.run(['wget', '--continue', run['sra_url']], cwd=path_out_tmp, check=True)
+                os.rename(os.path.join(path_out_tmp, os.path.basename(run['sra_url'])), path_sra)
+    else:
+        fname_sra = None
+    # Dump SRA file(s)
+    jobs = [[run['ref'], run.get('id'), run.get('paired'), path_out, path_out_tmp, config, dbl] for run in runs]
     pfu.parallel.run(dump_sra_run, jobs, num_processor=config['num_processor'])
+    # Remove tmp directory
+    if len(os.listdir(path_out_tmp)) == 0:
+        os.rmdir(path_out_tmp)
 
-def dump_sra_run(srr, run_id, paired, path_out, config, dbl):
+def dump_sra_run(srr, run_id, paired, path_out, path_out_tmp, config, dbl):
     # Prepare command
-    cmd = ['fasterq-dump', '--progress']
-    if paired is True:
-        cmd.append('--split-3')
-    cmd.extend(['--outdir', path_out, '--temp', path_out, '--threads', str(config['num_processor'])])
-    cmd.append(srr)
+    if config['use_fasterq_dump']:
+        cmd = ['fasterq-dump', '--progress', '--outdir', path_out_tmp, '--temp', path_out_tmp, '--threads', str(config['num_processor'])]
+        if paired is True:
+            cmd.append('--split-3')
+        cmd.append(srr)
+    else:
+        cmd = ['fastq-dump', '--outdir', path_out_tmp]
+        if paired is True:
+            cmd.append('--split-3')
+        cmd.append(srr)
     # Run command
-    print('Download and dump %s'%srr)
+    print('Dump %s'%srr)
     subprocess.run(cmd, check=True)
     # Delete orphan reads or Rename single end
-    if os.path.exists(os.path.join(path_out, srr+'_1.fastq')):
-        path_orphan = os.path.join(path_out, srr+'.fastq')
+    if os.path.exists(os.path.join(path_out_tmp, srr+'_1.fastq')):
+        path_orphan = os.path.join(path_out_tmp, srr+'.fastq')
         if os.path.exists(path_orphan):
             print('Remove', path_orphan)
             os.remove(path_orphan)
     else:
-        os.rename(os.path.join(path_out, srr+'.fastq'), os.path.join(path_out, srr+'_1.fastq'))
+        os.rename(os.path.join(path_out_tmp, srr+'.fastq'), os.path.join(path_out_tmp, srr+'_1.fastq'))
     # Post-dump
-    for ifq, fq in enumerate(sorted(glob.glob(os.path.join(path_out, srr+'_*.fastq')))):
+    nreads = []
+    for ifq, fq in enumerate(sorted(glob.glob(os.path.join(path_out_tmp, srr+'_*.fastq')))):
         fq = os.path.basename(fq)
         prefix, readn = re.search(r'(.*)_(\d+).fastq', fq).groups()
         fn = '%s_R%s.fastq'%(prefix, readn)
         # Strip
-        p = subprocess.run(['fastq_strip', fq, fn], check=True, capture_output=True, text=True, cwd=path_out)
+        p = subprocess.run(['fastq_strip', fq, fn], check=True, capture_output=True, text=True, cwd=path_out_tmp)
         nread, max_length = p.stdout.strip().split()
+        nreads.append(int(nread))
         # Update max length in database
         if run_id is None:
             run = dbl.get('run/get-ref/'+srr)
             if len(run[0]) > 0 and len(run[0][0]) > 0:
                 run_id = run[0][0]['run_id']
-        if run_id is not None and nread is not None and max_length is not None:
+        if run_id is not None:
             dbl.post('run/edit/'+str(run_id), json=[{'spots':int(nread), 'max_read_length':int(max_length)}])
         # Remove
-        os.remove(os.path.join(path_out, fq))
+        os.remove(os.path.join(path_out_tmp, fq))
         # Zip
         if 'zip_cmd' in config:
-            subprocess.run(config['zip_cmd'] + [fn], check=True, cwd=path_out)
-    # Read-only permission
-    for f in glob.glob(os.path.join(path_out, srr+'*.fastq*')):
-        os.chmod(os.path.join(path_out, os.path.basename(f)), 0o0444)
+            subprocess.run(config['zip_cmd'] + [fn], check=True, cwd=path_out_tmp)
+    # Check FASTQ are balanced with same number of reads
+    if not all([n == nreads[0] for n in nreads]):
+        raise Exception(f'Imbalanced number of reads: {",".join(map(str, nreads))}')
+    # Delete SRA
+    if os.path.exists(os.path.join(path_out_tmp, srr)):
+        os.remove(os.path.join(path_out_tmp, srr))
+    # Move & Read-only permission
+    for f in glob.glob(os.path.join(path_out_tmp, srr+'*.fastq*')):
+        basef = os.path.basename(f)
+        os.rename(os.path.join(path_out_tmp, basef), os.path.join(path_out, basef))
+        os.chmod(os.path.join(path_out, basef), 0o0444)
 
 def create_links(samples, config):
     path_out = os.path.join(config['path_seq_prepared'], config['project'])
@@ -140,6 +180,7 @@ def main(argv=None):
     parser.add_argument('-s', '--save_sra_xml', dest='save_sra_xml', action='store_true', help='Save project XML from SRA.')
     parser.add_argument('-p', '--processor', dest='num_processor', action='store', type=int, default=1, help='Number of processor')
     parser.add_argument('--overwrite_links', dest='overwrite_links', action='store_true', default=False, help='Overwrite existing links (default:False).')
+    parser.add_argument('--use_fasterq_dump', dest='use_fasterq_dump', action='store_true', default=False, help='Use fasterq-dump (default:False).')
     parser.add_argument('--path_config', dest='path_config', action='store', help='Path to config')
     parser.add_argument('--http_url', '--labxdb_http_url', dest='labxdb_http_url', action='store', help='Database HTTP URL')
     parser.add_argument('--http_login', '--labxdb_http_login', dest='labxdb_http_login', action='store', help='Database HTTP login')
@@ -184,7 +225,11 @@ def main(argv=None):
             print('ERROR: %s not found'%config['path_seq_prepared'])
             return 1
         # Check executables
-        exes = ['fasterq-dump', 'fastq_strip']
+        exes = ['fastq_strip']
+        if config['use_fasterq_dump']:
+            exes.append('fasterq-dump')
+        else:
+            exes.extend(['fastq-dump', 'wget'])
         if 'zip_cmd' in config:
             exes.append(config['zip_cmd'][0])
         check_exe(exes)

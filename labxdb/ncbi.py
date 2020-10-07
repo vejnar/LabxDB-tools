@@ -87,9 +87,16 @@ def get_samples_infos(srp, url_search='https://eutils.ncbi.nlm.nih.gov/entrez/eu
                    'platform': platform}
             sra_stat_per_read = {c.get('index'): c.get('count') for c in sra_run.find('./Statistics')}
             if '0' in sra_stat_per_read:
-                run['nread1'] = sra_stat_per_read['0']
+                run['nread1'] = int(sra_stat_per_read['0'])
             if '1' in sra_stat_per_read:
-                run['nread2'] = sra_stat_per_read['1']
+                run['nread2'] = int(sra_stat_per_read['1'])
+            # URL
+            for sra_file in sra_run.iter('SRAFile'):
+                if sra_file.attrib['cluster'] == 'public' and sra_file.attrib['supertype'] == 'Primary ETL':
+                    run['sra_url'] = sra_file.attrib['url']
+                    run['sra_size'] = int(sra_file.attrib['size'])
+                    run['sra_md5'] = sra_file.attrib['md5']
+            # Append run
             if len(import_runs) == 0 or (len(import_runs) > 0 and run['ref'] in import_runs):
                 sample['runs'].append(run)
         if len(sample['runs']) > 0:
