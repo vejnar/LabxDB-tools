@@ -33,19 +33,27 @@ def print_summary(samples):
 
 def add_samples(samples, srp, srp_title, dbl):
     # Add project
-    dbl.post('project/new', json=[{'project_ref':srp, 'label_short':srp, 'label_long':srp_title, 'sra_ref':srp}])
+    project = dbl.get('project/get-ref/'+srp)
+    if len(project[0]) > 0 and len(project[0][0]) > 0:
+        print(f'Project {srp} found in DB')
+    else:
+        dbl.post('project/new', json=[{'project_ref':srp, 'label_short':srp, 'label_long':srp_title, 'sra_ref':srp}])
 
     # Add samples
     query = []
     for sample in samples:
-        # Add run(s)
-        for irun, run in enumerate(sample['runs']):
-            # Add run
-            runs = dbl.post('run/new', json=[{'run_ref':run['ref'], 'run_order':irun+1, 'failed':False, 'platform':run['platform'], 'paired':run['paired'], 'sra_ref':run['ref']}])
-            # Save new run ID
-            run['id'] = runs[0]['run_id']
-            # Add run to query
-            query.append([['new', run['ref']], ['new', sample['label']], ['new', sample['label']], ['append', srp]])
+        replicates = dbl.post('replicate', {'search_criterion':['2 sra_ref EQUAL '+sample['ref']], 'limit':'ALL'})
+        if len(replicates) > 0:
+            raise NotImplementedError(f'{sample["ref"]} already imported')
+        else:
+            # Add run(s)
+            for irun, run in enumerate(sample['runs']):
+                # Add run
+                runs = dbl.post('run/new', json=[{'run_ref':run['ref'], 'run_order':irun+1, 'failed':False, 'platform':run['platform'], 'paired':run['paired'], 'sra_ref':run['ref']}])
+                # Save new run ID
+                run['id'] = runs[0]['run_id']
+                # Add run to query
+                query.append([['new', run['ref']], ['new', sample['label']], ['new', sample['label']], ['append', srp]])
     result = dbl.post('assign', json={'prefix':'SI', 'new_run':False, 'query':query})
 
     # Update replicate sra_ref
