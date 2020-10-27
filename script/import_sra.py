@@ -105,10 +105,10 @@ def dump_sra_run(srr, run_id, paired, path_out, path_out_tmp, config, dbl):
         cmd = ['fastq-dump', '--outdir', path_out_tmp]
         if paired is True:
             cmd.append('--split-3')
-        cmd.append(srr)
+        cmd.append(os.path.join('.', srr))
     # Run command
     print('Dump %s'%srr)
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, cwd=path_out_tmp)
     # Delete orphan reads or Rename single end
     if os.path.exists(os.path.join(path_out_tmp, srr+'_1.fastq')):
         path_orphan = os.path.join(path_out_tmp, srr+'.fastq')
