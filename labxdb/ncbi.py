@@ -103,7 +103,6 @@ def get_samples_infos(srp, url_search='https://eutils.ncbi.nlm.nih.gov/entrez/eu
             sample['runs'].sort(key=lambda x: x['ref'])
             samples.append(sample)
         # Sleep to reduce request rate
-        if i % 3 == 0 or i % 10 == 0:
-            time.sleep(1)
+        time.sleep(1)
     samples.sort(key=lambda x: x['ref'])
     return srp_title, samples
