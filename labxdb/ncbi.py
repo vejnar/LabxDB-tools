@@ -30,7 +30,7 @@ def get_samples_infos(srp, url_search='https://eutils.ncbi.nlm.nih.gov/entrez/eu
         else:
             xmlo = rep_get
         # Parse
-        sample = parse_sra_xml(xmlo, srp)
+        sample = parse_sra_xml(xmlo, srp, import_runs)
         if sample is not None and len(sample['runs']) > 0:
             samples.append(sample)
         # Sleep to reduce request rate
