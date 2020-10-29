@@ -59,11 +59,11 @@ def parse_sra_xml(f, srp=None, import_runs=[]):
         sample['label'] = sample['name']
     # Layout
     if sra_root.find('.//DESIGN/LIBRARY_DESCRIPTOR/LIBRARY_LAYOUT/SINGLE') is not None:
-        paired = False
+        sample['paired'] = False
     elif sra_root.find('.//DESIGN/LIBRARY_DESCRIPTOR/LIBRARY_LAYOUT/PAIRED') is not None:
-        paired = True
+        sample['paired'] = True
     else:
-        paired = None
+        sample['paired'] = None
     # Platform
     sra_illumina = sra_root.find('.//PLATFORM/ILLUMINA/INSTRUMENT_MODEL')
     sra_pacbio = sra_root.find('.//PLATFORM/PACBIO_SMRT/INSTRUMENT_MODEL')
@@ -91,13 +91,14 @@ def parse_sra_xml(f, srp=None, import_runs=[]):
         # Stats
         run = {'ref': sra_run.attrib['accession'],
                'spots': int(sra_run.attrib['total_spots']),
-               'paired': paired,
+               'paired': False,
                'platform': platform}
         sra_stat_per_read = {c.get('index'): c.get('count') for c in sra_run.find('./Statistics')}
         if '0' in sra_stat_per_read:
             run['nread1'] = int(sra_stat_per_read['0'])
         if '1' in sra_stat_per_read:
             run['nread2'] = int(sra_stat_per_read['1'])
+            run['paired'] = True
         # URL
         for sra_file in sra_run.iter('SRAFile'):
             if sra_file.attrib['cluster'] == 'public' and sra_file.attrib['supertype'] == 'Primary ETL':
