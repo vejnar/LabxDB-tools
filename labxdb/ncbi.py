@@ -30,7 +30,9 @@ def get_samples_infos(srp, url_search='https://eutils.ncbi.nlm.nih.gov/entrez/eu
         else:
             xmlo = rep_get
         # Parse
-        sample = parse_sra_xml(xmlo, srp, import_runs)
+        title, sample = parse_sra_xml(xmlo, srp, import_runs)
+        if title is not None:
+            srp_title = title
         if sample is not None and len(sample['runs']) > 0:
             samples.append(sample)
         # Sleep to reduce request rate
@@ -77,6 +79,8 @@ def parse_sra_xml(f, srp=None, import_runs=[]):
     sra_title = sra_root.find('.//STUDY_TITLE')
     if sra_title is not None:
         srp_title = sra_title.text
+    else:
+        srp_title = None
     # Attribute(s)
     sample['attributes'] = [[sra_att.find('./TAG').text, sra_att.find('./VALUE').text] for sra_att in sra_root.iter('SAMPLE_ATTRIBUTE')]
     # Run(s)
@@ -110,4 +114,4 @@ def parse_sra_xml(f, srp=None, import_runs=[]):
             sample['runs'].append(run)
     if len(sample['runs']) > 0:
         sample['runs'].sort(key=lambda x: x['ref'])
-    return sample
+    return srp_title, sample

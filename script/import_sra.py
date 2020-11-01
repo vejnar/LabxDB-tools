@@ -24,7 +24,9 @@ import labxdb.ncbi
 import pyfnutils as pfu
 import pyfnutils.parallel
 
-def print_summary(samples):
+def print_summary(srp_title, samples):
+    if srp_title is not None:
+        print('\n'+srp_title)
     for sample in samples:
         print('{:<20}{:<15}'.format(*[str(sample[s]) for s in ['ref', 'label']]))
         for run in sample['runs']:
@@ -252,8 +254,7 @@ def main(argv=None):
 
     # Get info
     srp_title, samples = labxdb.ncbi.get_samples_infos(config['project'], import_runs=config['runs'], save_sra_xml=config['save_sra_xml'], verbose=True)
-    print('\n'+srp_title)
-    print_summary(samples)
+    print_summary(srp_title, samples)
 
     # Import
     if config['db_import']:
