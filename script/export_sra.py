@@ -255,9 +255,11 @@ def merge_refs(infos, column):
     return ','.join([run[column] for run in infos['runs'] if run[column] is not None])
 
 def get_exported_fields(label_filters):
-    return {'sample_ref': {'column': ('sample', 'sample_ref')},
+    return {'project_ref': {'column': ('project', 'project_ref')},
+            'sample_ref': {'column': ('sample', 'sample_ref')},
             'replicate_ref': {'column': ('replicate', 'replicate_ref')},
             'replicate_order': {'column': ('replicate', 'replicate_order')},
+            'project_label_short': {'column': ('project', 'label_short')},
             'label_short': {'column': ('replicate', 'label_short')},
             'label_long': {'column': ('replicate', 'label_long')},
             'age': {'fn': age},
