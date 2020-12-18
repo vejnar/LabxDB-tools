@@ -108,7 +108,9 @@ def parse_sra_xml(f, srp=None, import_runs=[]):
             if sra_file.attrib['cluster'] == 'public' and sra_file.attrib['supertype'] == 'Primary ETL':
                 run['sra_url'] = sra_file.attrib['url']
                 run['sra_size'] = int(sra_file.attrib['size'])
-                run['sra_md5'] = sra_file.attrib['md5']
+                md5 = sra_file.get('md5')
+                if md5 is not None:
+                    run['sra_md5'] = md5
         # Append run
         if len(import_runs) == 0 or (len(import_runs) > 0 and run['ref'] in import_runs):
             sample['runs'].append(run)
