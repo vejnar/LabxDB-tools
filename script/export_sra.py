@@ -127,6 +127,8 @@ def get_sample_fields(label_filters, multiplex):
          'disease': {'default': None},
          'disease_stage': {'default': None},
          'genotype': {'fn': genotype},
+         'strain_maternal': {'column': ('sample', 'strain_maternal')},
+         'strain_paternal': {'column': ('sample', 'strain_paternal')},
          'geo_loc_name': {'default': None},
          'growth_protocol': {'default': None},
          'health_state': {'default': None},
