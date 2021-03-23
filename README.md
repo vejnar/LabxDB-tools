@@ -16,4 +16,4 @@ pip3 install labxdb.tar.gz
 
 *LabxDB* is distributed under the Mozilla Public License Version 2.0 (see /LICENSE).
 
-Copyright (C) 2018-2020 Charles E. Vejnar
+Copyright (C) 2018-2021 Charles E. Vejnar
