@@ -60,7 +60,7 @@ def download_read_files(bulk, url_remote, path_seq_raw, config, do_format=False,
     if not dry_run and do_format is False and no_readonly is False:
         os.chmod(path_output, 0o0555)
 
-def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=True, squashfs_download=False, rename_to_flowcell=True, fastq_exts=['.fastq'], no_readonly=False, dry_run=False, num_processor=1, logger=None):
+def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=True, squashfs_download=False, flowcell_dir=True, fastq_exts=['.fastq'], no_readonly=False, dry_run=False, num_processor=1, logger=None):
     # Parameters
     if logger is None:
         import logging as logger
@@ -71,6 +71,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
 
     # Reformat
     logger.info('Reformating following rule «%s»'%do_format)
+    path_bulk = os.path.join(path_seq_raw, bulk)
     if do_format.startswith('run_'):
         for name, path_list in fastqs.items():
             path_list_per_end = {}
@@ -80,7 +81,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                 else:
                     path_list_per_end[p['end']] = [os.path.join(p['path'], p['fname'])]
             for end, paths in path_list_per_end.items():
-                fname_out = os.path.join(path_seq_raw, bulk, '%s_%s.fastq'%(name, end))
+                fname_out = os.path.join(path_bulk, '%s_%s.fastq'%(name, end))
                 # Concatenate
                 cmd = ' '.join(['zcat'] + paths + ['>', fname_out])
                 if dry_run:
@@ -105,21 +106,27 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                     else:
                         logger.info('Removing %s'%p)
                         os.remove(p)
+        # Update fastqs
+        fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
 
     # Squashfs
-    path_root = os.path.join(path_seq_raw, bulk, 'download')
+    path_download = os.path.join(path_bulk, 'download')
+    path_squashfs = os.path.join(path_bulk, 'archive.sqfs')
     if squashfs_download:
         cmd = ['mksquashfs', '.', '../archive.sqfs', '-processors', str(num_processor), '-comp', 'xz', '-Xdict-size', '100%', '-b', '1M']
         if dry_run:
             logger.info('DRY RUN: Squashfs with %s'%cmd)
         else:
             logger.info('Squashfs with %s'%cmd)
-            subprocess.run(cmd, check=True, cwd=path_root)
+            subprocess.run(cmd, check=True, cwd=path_download)
             # Set cleaning
             delete_download = True
+            # Permission
+            if no_readonly is False:
+                os.chmod(path_squashfs, 0o0444)
     if delete_download:
         if dry_run:
-            logger.info('DRY RUN: Cleaning %s'%path_root)
+            logger.info('DRY RUN: Cleaning %s'%path_download)
         else:
             # Stop logging into file
             for h in logger.handlers:
@@ -127,43 +134,65 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                     h.close()
                     logger.removeHandler(h)
             # Remove download directory
-            logger.info('Cleaning %s'%path_root)
-            shutil.rmtree(path_root)
+            logger.info('Cleaning %s'%path_download)
+            shutil.rmtree(path_download)
 
-    # Permission
-    if not dry_run and no_readonly is False:
-        if squashfs_download:
-            os.chmod(os.path.join(path_seq_raw, bulk, 'archive.sqfs'), 0o0444)
-        os.chmod(os.path.join(path_seq_raw, bulk), 0o0555)
-
-    # New bulk name
-    fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
-    flowcells = set()
-    for name, path_list in fastqs.items():
-        for p in path_list:
-            r = labxdb.fastq.get_illumina_fastq_info(os.path.join(p['path'], p['fname']))
-            flowcells.add(r['flowcell'])
-    if len(flowcells) == 1:
-        flowcell = list(flowcells)[0].split(':')[2]
-        logger.info('Bulk contains data from single flowcell %s'%(flowcell))
-        if rename_to_flowcell:
-            if os.path.exists(os.path.join(path_seq_raw, flowcell)):
-                logger.info('Could not rename bulk %s, %s already exists'%(bulk, flowcell))
+    # Use flowcell as bulk name
+    if flowcell_dir:
+        flowcells = set()
+        fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+        for name, path_list in fastqs.items():
+            # Extract flowcell name from first FASTQ
+            r = labxdb.fastq.get_illumina_fastq_info(os.path.join(path_list[0]['path'], path_list[0]['fname']))
+            flowcell = r['flowcell'].split(':')[2]
+            flowcells.add(flowcell)
+            # Create new flowcell directory
+            path_new_bulk = os.path.join(path_seq_raw, flowcell)
+            if dry_run:
+                if not os.path.exists(path_new_bulk):
+                    logger.info(f'DRY RUN: New directory for {flowcell}')
             else:
-                logger.info('Rename bulk from %s to %s'%(bulk, flowcell))
-                os.rename(os.path.join(path_seq_raw, bulk), os.path.join(path_seq_raw, flowcell))
-                return flowcell
-    return None
+                if not os.path.exists(path_new_bulk):
+                    logger.info(f'New directory for {flowcell}')
+                    os.mkdir(path_new_bulk)
+                elif not os.access(path_new_bulk, os.W_OK):
+                    os.chmod(path_new_bulk, 0o0775)
+            # Move archive.sqfs to new flowcell directory
+            if os.path.exists(path_squashfs) and not os.path.exists(os.path.join(path_new_bulk, 'archive.sqfs')):
+                shutil.move(path_squashfs, path_new_bulk)
+            # Move file(s) to flowcell directory
+            if dry_run:
+                logger.info(f'DRY RUN: Move {name} from {bulk} to {path_new_bulk}')
+            else:
+                logger.info(f'Move {name} from {bulk} to {path_new_bulk}')
+                for p in path_list:
+                    shutil.move(os.path.join(path_bulk, p['fname']), path_new_bulk)
+                    # Change path in fastqs too
+                    p['path'] = path_new_bulk
+                # Permission
+                if no_readonly is False:
+                    os.chmod(path_new_bulk, 0o0555)
+        # Remove buck directory
+        if dry_run:
+            logger.info(f'DRY RUN: Removing {path_bulk}')
+        else:
+            logger.info(f'Removing {path_bulk}')
+            shutil.rmtree(path_bulk)
+        if len(flowcells) > 1:
+            logger.warning(f"Data from multiple flowcells: {','.join(flowcells)}")
 
-def import_staging(bulk, path_seq_raw, ref_prefix='TMP_', fastq_exts=['.fastq'], dry_run=False, dbl=None, logger=None):
+    return fastqs
+
+def import_staging(bulk, path_seq_raw, fastqs=None, ref_prefix='TMP_', fastq_exts=['.fastq'], dry_run=False, dbl=None, logger=None):
     # Parameters
     if logger is None:
         import logging as logger
 
     logger.info('Adding runs to table')
-    fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
-    if labxdb.fastq.check_fastqs(fastqs) is False:
-        raise Error('Name collision: Runs with the same name detected in different folder')
+    if fastqs is None:
+        fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+        if labxdb.fastq.check_fastqs(fastqs) is False:
+            raise Error('Name collision: Runs with the same name detected in different folder')
 
     irun = 1
     for name, path_list in fastqs.items():
@@ -293,7 +322,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='Download and import sequencing read data.')
     # General
     group = parser.add_argument_group('Main')
-    group.add_argument('-b', '--bulk', dest='bulk', action='store', help='Sequencing bulk name (default to date)')
+    group.add_argument('-b', '--bulk', dest='bulk', action='store', help='Sequencing bulk name (defaults to date)')
     group.add_argument('-y', '--format', dest='format', action='store', default='run_zstd', help='Organization/format of raw files. Supported: raw, run_zstd')
     group.add_argument('-r', '--path_seq_raw', dest='path_seq_raw', action='store', help='Path to raw seq.')
     group.add_argument('-l', '--path_seq_run', dest='path_seq_run', action='store', help='Path to run.')
@@ -315,7 +344,7 @@ def main(argv=None):
     group = parser.add_argument_group('Format')
     group.add_argument('--delete_download', dest='delete_download', action='store_true', help='Delete download folder.')
     group.add_argument('--squashfs_download', dest='squashfs_download', action='store_true', help='Create squashfs image of download folder.')
-    group.add_argument('--rename_to_flowcell', dest='rename_to_flowcell', action='store_true', help='Rename flowcell name if unique.')
+    group.add_argument('--flowcell_dir', dest='flowcell_dir', action='store_true', help='Use flowcell name as directory name.')
     # Import in DB
     group = parser.add_argument_group('DB import')
     group.add_argument('-e', '--ref_prefix', dest='ref_prefix', action='store', default='TMP_', help='Temporary run reference prefix.')
@@ -423,6 +452,7 @@ def main(argv=None):
             download_read_files(config['bulk'], config['url_remote'], config['path_seq_raw'], config, config['make_format'], download_program=config['download_program'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], logger=logger)
 
         # Import
+        fastqs = None
         if config['make_staging'] or config['make_import']:
             if 'labxdb_http_path' not in config and 'labxdb_http_db' not in config:
                 if 'labxdb_http_path_seq' in config:
@@ -431,11 +461,9 @@ def main(argv=None):
                     config['labxdb_http_db'] = 'seq'
             dbl = labxdb.DBLink(config.get('labxdb_http_url'), config.get('labxdb_http_login'), config.get('labxdb_http_password'), config.get('labxdb_http_path'), config.get('labxdb_http_db'))
         if config['make_format']:
-            new_bulk = format_raw_read_files(config['bulk'], config['path_seq_raw'], do_format=config['format'], delete_download=config['delete_download'], squashfs_download=config['squashfs_download'], rename_to_flowcell=config['rename_to_flowcell'], fastq_exts=config['fastq_exts'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], num_processor=config['num_processor'], logger=logger)
-            if new_bulk is not None:
-                config['bulk'] = new_bulk
+            fastqs = format_raw_read_files(config['bulk'], config['path_seq_raw'], do_format=config['format'], delete_download=config['delete_download'], squashfs_download=config['squashfs_download'], flowcell_dir=config['flowcell_dir'], fastq_exts=config['fastq_exts'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], num_processor=config['num_processor'], logger=logger)
         if config['make_staging']:
-            import_staging(config['bulk'], config['path_seq_raw'], config['ref_prefix'], fastq_exts=config['fastq_exts'], dry_run=config['dry_run'], dbl=dbl, logger=logger)
+            import_staging(config['bulk'], config['path_seq_raw'], fastqs=fastqs, ref_prefix=config['ref_prefix'], fastq_exts=config['fastq_exts'], dry_run=config['dry_run'], dbl=dbl, logger=logger)
         if config['make_import']:
             import_raw_read_files(config['bulk'], config['path_seq_raw'], config['with_second_barcode'], config['input_run_refs'], config['exclude_run_refs'], config['path_seq_run'], fastq_exts=config['fastq_exts'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], dbl=dbl, config=config, num_processor=config['num_processor'], logger=logger)
     except Error as e:
