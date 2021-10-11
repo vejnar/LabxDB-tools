@@ -9,7 +9,7 @@ See [tags](/../../tags) page.
 ## Install
 
 ```bash
-pip3 install labxdb.tar.gz
+pip3 install labxdb
 ```
 
 ## License
