@@ -1,6 +1,6 @@
 # LabxDB Python
 
-Classes and scripts written in Python for LabxDB.
+Classes and scripts written in Python for [LabxDB](https://labxdb.vejnar.org).
 
 ## Download
 
