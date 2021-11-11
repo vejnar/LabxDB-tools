@@ -70,11 +70,17 @@ class DBLink(object):
         r.raise_for_status()
         if r.headers['Query-status'] != 'OK':
             raise ValueError(r.headers['Query-status'])
-        return r.json()
+        if 'application/json' in r.headers['Content-Type']:
+            return r.json()
+        else:
+            return r.text
 
     def post(self, url, data=None, json=None):
         r = self.session.post(urljoin(self.http_url, url), data=data, json=json, auth=(self.http_login, self.http_password))
         r.raise_for_status()
         if r.headers['Query-status'] != 'OK':
             raise ValueError(r.headers['Query-status'])
-        return r.json()
+        if 'application/json' in r.headers['Content-Type']:
+            return r.json()
+        else:
+            return r.text
