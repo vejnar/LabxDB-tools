@@ -37,7 +37,7 @@ def get_samples_infos(srp, url_search='https://eutils.ncbi.nlm.nih.gov/entrez/eu
             samples.append(sample)
         # Sleep to reduce request rate
         time.sleep(1)
-    samples.sort(key=lambda x: x['ref'])
+    samples.sort(key=lambda x: (x['ref'], x['runs'][0]['ref']))
     return srp_title, samples
 
 def parse_sra_xml(f, srp=None, import_runs=[]):
