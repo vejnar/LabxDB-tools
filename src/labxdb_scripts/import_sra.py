@@ -55,12 +55,15 @@ def add_samples(samples, srp, srp_title, dbl):
                 # Save new run ID
                 run['id'] = runs[0]['run_id']
                 # Add run to query
-                query.append([['new', run['ref']], ['new', sample['label']], ['new', sample['label']], ['append', srp]])
-    result = dbl.post('assign', json={'prefix':'SI', 'new_run':False, 'query':query})
+                query.append([['keep', run['ref']], ['new', sample['label']], ['new', sample['label']], ['append', srp]])
+    result = dbl.post('assign', json={'prefix':'SI', 'query':query})
 
     # Update replicate sra_ref
-    for ireplicate, replicate in enumerate(result['ids'][1]):
-        dbl.post('replicate/edit/'+str(replicate), json=[{'sra_ref':samples[ireplicate]['ref']}])
+    replicate_refs = result['refs'][1]
+    for sample in samples:
+        record = replicate_refs[sample['label']]
+        print(record['ref'], sample['ref'], sample['label'])
+        dbl.post('replicate/edit/'+str(record['serial']), json=[{'sra_ref':sample['ref']}])
 
 def dump_sra(samples, config, dbl):
     # Create output directory
