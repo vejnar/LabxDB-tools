@@ -24,10 +24,10 @@ import labxdb.ncbi
 import pyfnutils as pfu
 import pyfnutils.parallel
 
-def print_summary(srp_title, samples):
-    if srp_title is not None:
-        print('\n'+srp_title)
-    for sample in samples:
+def print_summary(project):
+    if project['title'] is not None:
+        print('\n'+project['title'])
+    for sample in project['samples']:
         print('{:<20}{:<15}'.format(*[str(sample[s]) for s in ['ref', 'label']]))
         for run in sample['runs']:
             print('   \_'+run['ref'])
@@ -62,7 +62,6 @@ def add_samples(samples, srp, srp_title, dbl):
     replicate_refs = result['refs'][1]
     for sample in samples:
         record = replicate_refs[sample['label']]
-        print(record['ref'], sample['ref'], sample['label'])
         dbl.post('replicate/edit/'+str(record['serial']), json=[{'sra_ref':sample['ref']}])
 
 def dump_sra(samples, config, dbl):
@@ -190,8 +189,10 @@ def main(argv=None):
     parser.add_argument('-a', '--path_seq_prepared', dest='path_seq_prepared', action='store', help='Path to prepared.')
     parser.add_argument('-n', '--path_seq_run', dest='path_seq_run', action='store', help='Path to run.')
     parser.add_argument('-r', '--runs', dest='runs', action='store', help='Selected runs excluding all others in the project (comma separated).')
-    parser.add_argument('-s', '--save_sra_xml', dest='save_sra_xml', action='store_true', help='Save project XML from SRA.')
+    parser.add_argument('-x', '--save_sra_xml', dest='save_sra_xml', action='store_true', help='Save project XML from SRA.')
+    parser.add_argument('-s', '--save_project_json', dest='save_project_json', action='store_true', help='Save project (JSON).')
     parser.add_argument('-p', '--processor', dest='num_processor', action='store', type=int, default=1, help='Number of processor')
+    parser.add_argument('--path_project_json', dest='path_project_json', action='store', help='Path to project (JSON).')
     parser.add_argument('--overwrite_links', dest='overwrite_links', action='store_true', default=False, help='Overwrite existing links (default:False).')
     parser.add_argument('--use_fasterq_dump', dest='use_fasterq_dump', action='store_true', default=False, help='Use fasterq-dump (default:False).')
     parser.add_argument('--path_config', dest='path_config', action='store', help='Path to config')
@@ -256,13 +257,16 @@ def main(argv=None):
     dbl = labxdb.DBLink(config.get('labxdb_http_url'), config.get('labxdb_http_login'), config.get('labxdb_http_password'), config.get('labxdb_http_path'), config.get('labxdb_http_db'))
 
     # Get info
-    srp_title, samples = labxdb.ncbi.get_samples_infos(config['project'], import_runs=config['runs'], save_sra_xml=config['save_sra_xml'], verbose=True)
-    print_summary(srp_title, samples)
+    if args.path_project_json:
+        project = json.load(open(args.path_project_json))
+    else:
+        project = labxdb.ncbi.get_samples_infos(config['project'], import_runs=config['runs'], save_sra_xml=config['save_sra_xml'], save_project_json=config['save_project_json'], verbose=True)
+    print_summary(project)
 
     # Import
     if config['db_import']:
         print('Import to DB')
-        add_samples(samples, config['project'], srp_title, dbl)
+        add_samples(project['samples'], config['project'], project['title'], dbl)
     if config['dump_sra']:
         print('Dump from SRA')
         dump_sra(samples, config, dbl)

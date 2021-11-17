@@ -8,13 +8,14 @@
 # file, You can obtain one at https://www.mozilla.org/MPL/2.0/.
 #
 
+import json
 import os
 import tempfile
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
 
-def get_samples_infos(srp, url_search='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=sra&retmax=1000&term=', url_get='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=sra&id=', import_runs=[], save_sra_xml=False, verbose=False):
+def get_samples_infos(srp, url_search='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=sra&retmax=1000&term=', url_get='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=sra&id=', import_runs=[], save_sra_xml=False, save_project_json=False, verbose=False):
     samples = []
     srp_title = None
     rep_search = urllib.request.urlopen(url_search+srp)
@@ -38,7 +39,12 @@ def get_samples_infos(srp, url_search='https://eutils.ncbi.nlm.nih.gov/entrez/eu
         # Sleep to reduce request rate
         time.sleep(1)
     samples.sort(key=lambda x: (x['ref'], x['runs'][0]['ref']))
-    return srp_title, samples
+    # Project
+    project = {'title': srp_title, 'samples': samples}
+    if save_project_json:
+        with open(os.path.join(tempfile.gettempdir(), f'{srp}.json'), 'wt') as fout:
+            json.dump(project, fout)
+    return project
 
 def parse_sra_xml(f, srp=None, import_runs=[]):
     sra_root = ET.parse(f).getroot()
