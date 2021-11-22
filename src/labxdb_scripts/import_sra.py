@@ -61,7 +61,7 @@ def add_samples(samples, srp, srp_title, dbl):
     # Update replicate sra_ref
     replicate_refs = result['refs'][1]
     for sample in samples:
-        record = replicate_refs[sample['label']]
+        record = replicate_refs[sample['label']+sample['label']+srp]
         dbl.post('replicate/edit/'+str(record['serial']), json=[{'sra_ref':sample['ref']}])
 
 def dump_sra(samples, config, dbl):
