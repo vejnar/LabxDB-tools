@@ -17,14 +17,14 @@ import pyfnutils.zstd
 
 def parse_illumina_fastq_filename(fname):
     """Illumina semantics: *_NUMBER_L00X_R1_YYY.fastq.XX"""
-    m = re.match('(.+)_([a-zA-Z0-9]+)_L(\d{3})_([R,I][1,2,3])_\d{3}.f', fname)
+    m = re.match('(.+)_([a-zA-Z0-9]+)_L(\d{3})_([R,I][1,2,3])_\d{3}\.f', fname)
     if m:
         return {'name':m.group(1), 'barcode':m.group(2), 'lane':m.group(3), 'end':m.group(4)}
     else:
         return None
 
 def parse_fastq_filename(fname):
-    m = re.match('(.+)_([R,I][1,2]).f', fname)
+    m = re.match('(.+)_([R,I][1,2,3])\.f', fname)
     if m:
         return {'name':m.group(1), 'end':m.group(2)}
     else:
