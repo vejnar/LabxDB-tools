@@ -322,7 +322,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='Download and import sequencing read data.')
     # General
     group = parser.add_argument_group('Main')
-    group.add_argument('-b', '--bulk', dest='bulk', action='store', help='Sequencing bulk name (defaults to date)')
+    group.add_argument('-b', '--bulk', dest='bulk', action='store', help='Sequencing bulk name (defaults to "date_time")')
     group.add_argument('-y', '--format', dest='format', action='store', default='run_zstd', help='Organization/format of raw files. Supported: raw, run_zstd')
     group.add_argument('-r', '--path_seq_raw', dest='path_seq_raw', action='store', help='Path to raw seq.')
     group.add_argument('-l', '--path_seq_run', dest='path_seq_run', action='store', help='Path to run.')
@@ -392,7 +392,7 @@ def main(argv=None):
 
     # Bulk option
     if config['make_download'] and 'bulk' not in config:
-        date = datetime.datetime.now().strftime('%Y%m%d')
+        date = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         if os.path.exists(os.path.join(config['path_seq_raw'], date)):
             print('ERROR: %s already exists'%date)
             return 1
