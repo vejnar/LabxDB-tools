@@ -36,7 +36,7 @@ def xstr(s):
 # Sample functions
 
 def sample_name(infos, filters):
-    n = '%s - %s %s'%(infos['project']['label_short'], infos['replicate']['label_short'], infos['replicate']['replicate_ref'])
+    n = f"{infos['project']['label_short']} - {infos['replicate']['label_short']} {infos['replicate']['replicate_ref']}"
     for k, v in filters:
         if n.find(k) != -1:
             n = n.replace(k, v)
@@ -44,7 +44,7 @@ def sample_name(infos, filters):
     return n
 
 def sample_short_name(infos, filters):
-    n = '%s %s'%(infos['replicate']['label_short'], infos['replicate']['replicate_ref'])
+    n = f"{infos['replicate']['label_short']} {infos['replicate']['replicate_ref']}"
     for k, v in filters:
         if n.find(k) != -1:
             n = n.replace(k, v)
@@ -52,7 +52,7 @@ def sample_short_name(infos, filters):
     return n
 
 def sample_title(infos, filters):
-    n = '%s - %s'%(infos['project']['label_short'], infos['replicate']['label_long'])
+    n = f"{infos['project']['label_short']} - {infos['replicate']['label_long']}"
     for k, v in filters:
         if n.find(k) != -1:
             n = n.replace(k, v)
@@ -241,9 +241,9 @@ def get_multiplex_record(fields, multiplex_samples, flowcell_alias, tube_label, 
             new_name = 'Raw multiplex: ' + ';'.join(mfield + ['unrelated']*len(unexported_barcodes))
         elif (field_name == 'filename' or field_name == 'filename2') and any(uniq):
             if field_name == 'filename':
-                new_name = '%s_%s_R1.fastq.gz'%(flowcell_alias, tube_label)
+                new_name = f'{flowcell_alias}_{tube_label}_R1.fastq.gz'
             elif field_name == 'filename2':
-                new_name = '%s_%s_R2.fastq.gz'%(flowcell_alias, tube_label)
+                new_name = f'{flowcell_alias}_{tube_label}_R2.fastq.gz'
         elif field_name == 'library_ID':
             new_name = ';'.join([xstr(u) for u in uniq + ['unrelated']*len(unexported_barcodes)])
         elif field_name == 'barcode':
@@ -391,7 +391,7 @@ def main(argv=None):
 
         # Already exported run
         if config['exclude_exported'] and replicate['sra_ref'] is not None:
-            print('WARNING: %s "%s" already exported in %s'%(replicate['replicate_ref'], replicate['label_short'], replicate['publication_ref']))
+            print(f"WARNING: {replicate['replicate_ref']} \"{replicate['label_short']}\" already exported in {replicate['publication_ref']}")
             erecord = get_record(exported_fields, {'runs':runs, 'replicate':replicate, 'sample':sample_infos[replicate['sample_ref']], 'project':project_infos[replicate['project_ref']]})
             exported_records.append(erecord)
             continue
