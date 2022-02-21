@@ -384,8 +384,8 @@ def main(argv=None):
 
     # Label filters
     if 'path_label_filters' in config:
-        with open(config['path_label_filters']) as f:
-            label_filters = [l.split(',') for l in f.read().strip().split('\n')]
+        with open(config['path_label_filters']) as fcsv:
+            label_filters = [row for row in csv.reader(fcsv)]
     else:
         label_filters = []
 
