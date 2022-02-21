@@ -59,6 +59,22 @@ def sample_title(infos, filters):
             break
     return n
 
+def project_label_long(infos, filters):
+    n = f"{infos['project']['label_long']}"
+    for k, v in filters:
+        if n.find(k) != -1:
+            n = n.replace(k, v)
+            break
+    return n
+
+def project_label_short(infos, filters):
+    n = f"{infos['project']['label_short']}"
+    for k, v in filters:
+        if n.find(k) != -1:
+            n = n.replace(k, v)
+            break
+    return n
+
 def sample_short_title(infos, filters):
     n = infos['replicate']['label_long']
     for k, v in filters:
@@ -146,7 +162,11 @@ def get_sample_fields(label_filters, multiplex):
          'condition': {'column': ('sample', 'condition')},
          'sample_ref': {'column': ('sample', 'sample_ref')},
          'replicate_ref': {'column': ('replicate', 'replicate_ref')},
-         'replicate_order': {'column': ('replicate', 'replicate_order')}}
+         'replicate_order': {'column': ('replicate', 'replicate_order')},
+         'project_label_long': {'fn': project_label_long, 'arg': label_filters},
+         'project_label_short': {'fn': project_label_short, 'arg': label_filters},
+         'sample_label_short': {'column': ('sample', 'label_short')},
+         'replicate_label_short': {'column': ('replicate', 'label_short')}}
     if multiplex:
         c['barcode'] = {'fn': second_barcode}
     return c
