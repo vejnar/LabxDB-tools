@@ -153,7 +153,8 @@ def main(argv=None):
     parser.add_argument('-c', '--check', dest='check', action='store_true', help='Check.')
     parser.add_argument('-d', '--dry', dest='dry', action='store_true', help='Dry run.')
     parser.add_argument('-p', '--publication_ref', dest='publication_ref', action='store', required=True, help='Publication reference.')
-    parser.add_argument('-s', '--save_sra_xml', dest='save_sra_xml', action='store_true', help='Save project XML from SRA.')
+    parser.add_argument('-x', '--save_sra_xml', dest='save_sra_xml', action='store_true', help='Save project XML from SRA.')
+    parser.add_argument('-s', '--save_project_json', dest='save_project_json', action='store_true', help='Save project (JSON).')
     parser.add_argument('--path_config', dest='path_config', action='store', help='Path to config')
     parser.add_argument('--http_url', '--labxdb_http_url', dest='labxdb_http_url', action='store', help='Database HTTP URL')
     parser.add_argument('--http_login', '--labxdb_http_login', dest='labxdb_http_login', action='store', help='Database HTTP login')
@@ -202,7 +203,7 @@ def main(argv=None):
     if not config['dry']:
         options = dbl.post('option', {'search_criterion':['0 group_name EQUAL publication_ref'], 'limit':'ALL'})
         if config['publication_ref'] not in [o['option'] for o in options]:
-            print('Adding publication %s in Option'%config['publication_ref'])
+            print(f"Adding publication {config['publication_ref']} in Option")
             dbl.post('option/new', json=[{'group_name':'publication_ref', 'option':config['publication_ref']}])
 
     # Update & Check
@@ -213,27 +214,26 @@ def main(argv=None):
         print('Loading', sra_ref)
         path_info = os.path.join(tempfile.gettempdir(), sra_ref+'.json')
         if os.path.exists(path_info):
-            sra_samples = json.load(open(path_info))
+            project = json.load(open(path_info))
         else:
-            _, sra_samples = labxdb.ncbi.get_samples_infos(sra_ref, save_sra_xml=config['save_sra_xml'], verbose=True)
-            json.dump(sra_samples, open(path_info, 'wt'))
+            project = labxdb.ncbi.get_samples_infos(sra_ref, save_sra_xml=config['save_sra_xml'], save_project_json=config['save_project_json'], verbose=True)
         # Update
         print('\n>', sra_ref)
         if config['update']:
-            nwarn += search_replicate_ref(sra_samples)
-            queries, nw = update_ref(sra_samples, config['publication_ref'], dbl)
+            nwarn += search_replicate_ref(project['samples'])
+            queries, nw = update_ref(project['samples'], config['publication_ref'], dbl)
             nwarn += nw
             for q in queries:
                 if not config['dry']:
                     dbl.post(q[0], json=[q[1]])
         # Check
         if config['check']:
-            sra_runs, nw = check_replicates(sra_samples, config['publication_ref'], dbl)
+            sra_runs, nw = check_replicates(project['samples'], config['publication_ref'], dbl)
             nwarn += nw
             nw, ne = check_runs(sra_runs, dbl)
             nwarn += nw
             nerror += ne
-    print('%s warning(s), %s error(s)'%(nwarn, nerror))
+    print(f'{nwarn} warning(s), {nerror} error(s)')
 
 if __name__ == '__main__':
     sys.exit(main())
