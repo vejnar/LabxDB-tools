@@ -43,9 +43,9 @@ def download_read_files(bulk, url_remote, path_seq_raw, config, do_format=False,
             if 'wget_options' in config:
                 cmds += config['wget_options']
             if dry_run:
-                logger.info('DRY RUN: %s'%cmds)
+                logger.info(f'DRY RUN: {cmds}')
             else:
-                logger.info('Downloading with %s'%cmds)
+                logger.info(f'Downloading with {cmds}')
                 if not os.path.exists(path_output):
                     os.mkdir(path_output)
                 try:
@@ -70,7 +70,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
         raise Error('Name collision: Runs with the same name detected in different folder')
 
     # Reformat
-    logger.info('Reformating following rule «%s»'%do_format)
+    logger.info(f'Reformating following rule «{do_format}»')
     path_bulk = os.path.join(path_seq_raw, bulk)
     if do_format.startswith('run_'):
         for name, path_list in fastqs.items():
@@ -81,30 +81,30 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                 else:
                     path_list_per_end[p['end']] = [os.path.join(p['path'], p['fname'])]
             for end, paths in path_list_per_end.items():
-                fname_out = os.path.join(path_bulk, '%s_%s.fastq'%(name, end))
+                fname_out = os.path.join(path_bulk, f'{name}_{end}.fastq')
                 # Concatenate
                 cmd = ' '.join(['zcat'] + paths + ['>', fname_out])
                 if dry_run:
-                    logger.info('DRY RUN: Concatenating run with %s'%cmd)
+                    logger.info(f'DRY RUN: Concatenating run with {cmd}')
                 else:
-                    logger.info('Concatenating run with %s'%cmd)
+                    logger.info(f'Concatenating run with {cmd}')
                     subprocess.run(cmd, check=True, shell=True)
                 # Zip
                 if do_format == 'run_zstd':
                     cmd = ['zstd', '--rm', '-T'+str(num_processor), '-19', fname_out]
                     if dry_run:
-                        logger.info('DRY RUN: Zip run with %s'%cmd)
+                        logger.info(f'DRY RUN: Zip run with {cmd}')
                     else:
-                        logger.info('Zip run with %s'%cmd)
+                        logger.info(f'Zip run with {cmd}')
                         subprocess.run(cmd, check=True)
                         if no_readonly is False:
                             os.chmod(fname_out+'.zst', 0o0444)
                 # Clean
                 for p in paths:
                     if dry_run:
-                        logger.info('DRY RUN: Removing %s'%p)
+                        logger.info(f'DRY RUN: Removing {p}')
                     else:
-                        logger.info('Removing %s'%p)
+                        logger.info(f'Removing {p}')
                         os.remove(p)
         # Update fastqs
         fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
@@ -115,9 +115,9 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
     if squashfs_download:
         cmd = ['mksquashfs', '.', '../archive.sqfs', '-processors', str(num_processor), '-comp', 'xz', '-Xdict-size', '100%', '-b', '1M']
         if dry_run:
-            logger.info('DRY RUN: Squashfs with %s'%cmd)
+            logger.info(f'DRY RUN: Squashfs with {cmd}')
         else:
-            logger.info('Squashfs with %s'%cmd)
+            logger.info(f'Squashfs with {cmd}')
             subprocess.run(cmd, check=True, cwd=path_download)
             # Set cleaning
             delete_download = True
@@ -126,7 +126,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                 os.chmod(path_squashfs, 0o0444)
     if delete_download:
         if dry_run:
-            logger.info('DRY RUN: Cleaning %s'%path_download)
+            logger.info(f'DRY RUN: Cleaning {path_download}')
         else:
             # Stop logging into file
             for h in logger.handlers:
@@ -134,7 +134,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                     h.close()
                     logger.removeHandler(h)
             # Remove download directory
-            logger.info('Cleaning %s'%path_download)
+            logger.info(f'Cleaning {path_download}')
             shutil.rmtree(path_download)
 
     # Use flowcell as bulk name
@@ -220,10 +220,10 @@ def import_staging(bulk, path_seq_raw, fastqs=None, ref_prefix='TMP_', fastq_ext
         else:
             paired = False
         if dry_run:
-            logger.info('DRY RUN: Adding %s (%s,%s,%s,paired:%s)'%(name, fastq_infos['flowcell'], fastq_infos['barcode'], max_read_length, paired))
+            logger.info(f"DRY RUN: Adding {name} ({fastq_infos['flowcell']},{fastq_infos['barcode']},{max_read_length},paired:{paired})")
         else:
-            logger.info('Adding run %s'%name)
-            dbl.post('run/new', json=[{'run_ref':'%s%03i'%(ref_prefix, irun), 'run_order':1, 'tube_label':name, 'barcode':fastq_infos['barcode'], 'failed':False, 'flowcell':fastq_infos['flowcell'], 'paired':paired, 'max_read_length':max_read_length, 'spots':spots}])
+            logger.info(f'Adding run {name}')
+            dbl.post('run/new', json=[{'run_ref':f'{ref_prefix}{irun:03}', 'run_order':1, 'tube_label':name, 'barcode':fastq_infos['barcode'], 'failed':False, 'flowcell':fastq_infos['flowcell'], 'paired':paired, 'max_read_length':max_read_length, 'spots':spots}])
         irun += 1
 
 def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_run_refs=[], exclude_run_refs=[], path_seq_run='.', print_summary=True, fastq_exts=['.fastq'], no_readonly=False, dry_run=False, dbl=None, config=None, num_processor=1, logger=None):
@@ -268,7 +268,7 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
             if len(exclude_run_refs) > 0:
                 runs = [r for r in runs if r['run_ref'] not in exclude_run_refs]
             if len(runs) == 0:
-                logger.warning('%s had no run'%name)
+                logger.warning(f'{name} had no run')
                 continue
 
         for r in runs:
@@ -280,7 +280,7 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
             # Make folder
             if not os.path.exists(full_path_run):
                 if dry_run:
-                    logger.info('DRY RUN: os.makedir(%s)'%(full_path_run))
+                    logger.info(f'DRY RUN: os.makedir({full_path_run})')
                 else:
                     os.mkdir(full_path_run)
                     created_folders.append(full_path_run)
@@ -289,7 +289,7 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
                 fq_new_path = os.path.join(full_path_run, p['fname'])
                 fq_rel_path = os.path.relpath(os.path.join(p['path'], p['fname']), full_path_run)
                 if dry_run:
-                    logger.info('DRY RUN: os.symlink(%s, %s)'%(fq_rel_path, fq_new_path))
+                    logger.info(f'DRY RUN: os.symlink({fq_rel_path}, {fq_new_path})')
                 else:
                     if not os.path.exists(fq_new_path):
                         os.symlink(fq_rel_path, fq_new_path)
@@ -308,13 +308,13 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
         for runs in done_runs:
             for r in runs:
                 if r['done']:
-                    print('{:<30}{:<30}{:<30}{:<15}{:<30}'.format(r['tube_label'], r['flowcell'], r['barcode'], r['run_ref'], r['path_list'][0]['path']))
+                    print(f"{r['tube_label']:<30}{r['flowcell']:<30}{r['barcode']:<30}{r['run_ref']:<15}{r['path_list'][0]['path']:<30}")
         print()
 
 def check_exe(names):
     for name in names:
         if shutil.which(name) == None:
-            raise Error('%s missing'%name)
+            raise Error(f'{name} missing')
 
 def main(argv=None):
     if argv is None:
@@ -394,7 +394,7 @@ def main(argv=None):
     if config['make_download'] and 'bulk' not in config:
         date = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         if os.path.exists(os.path.join(config['path_seq_raw'], date)):
-            print('ERROR: %s already exists'%date)
+            print(f'ERROR: {date} already exists')
             return 1
         else:
             config['bulk'] = date
@@ -410,7 +410,7 @@ def main(argv=None):
             return 1
         # Check folder
         if not os.path.exists(config['path_seq_raw']):
-            print('ERROR: %s not found'%config['path_seq_raw'])
+            print(f"ERROR: {config['path_seq_raw']} not found")
             return 1
     if config['make_import']:
         # Check option
@@ -419,7 +419,7 @@ def main(argv=None):
             return 1
         # Check folder
         if not os.path.exists(config['path_seq_run']):
-            print('ERROR: %s not found'%config['path_seq_run'])
+            print(f"ERROR: {config['path_seq_run']} not found")
             return 1
     if config['make_download']:
         # Check for download software
@@ -441,7 +441,7 @@ def main(argv=None):
         log_filename = None
 
     # Logging
-    logger = pfu.log.define_root_logger('load_%s'%(config['bulk']), level='info', filename=log_filename)
+    logger = pfu.log.define_root_logger(f"load_{config['bulk']}", level='info', filename=log_filename)
     logger.info('Starting')
 
     try:
