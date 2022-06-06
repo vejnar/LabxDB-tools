@@ -30,9 +30,9 @@ def parse_fastq_filename(fname):
     else:
         return None
 
-def find_fastqs(path_bulk, path_seq_raw, fastq_exts=['.fastq'], fastq_fns=[parse_fastq_filename]):
+def find_fastqs(path_seq, fastq_exts=['.fastq'], fastq_fns=[parse_fastq_filename]):
     fastqs = {}
-    for path, dirs, files in os.walk(os.path.join(path_seq_raw, path_bulk), followlinks=True):
+    for path, dirs, files in os.walk(path_seq, followlinks=True):
         for fname in files:
             if any([fname.endswith(e) for e in fastq_exts]):
                 for fastq_fn in fastq_fns:

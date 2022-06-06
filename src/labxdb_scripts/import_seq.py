@@ -65,7 +65,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
     if logger is None:
         import logging as logger
 
-    fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+    fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
     if labxdb.fastq.check_fastqs(fastqs) is False:
         raise Error('Name collision: Runs with the same name detected in different folder')
 
@@ -107,7 +107,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                         logger.info(f'Removing {p}')
                         os.remove(p)
         # Update fastqs
-        fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+        fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
 
     # Squashfs
     path_download = os.path.join(path_bulk, 'download')
@@ -140,7 +140,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
     # Use flowcell as bulk name
     if flowcell_dir:
         flowcells = set()
-        fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+        fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
         for name, path_list in fastqs.items():
             # Extract flowcell name from first FASTQ
             r = labxdb.fastq.get_illumina_fastq_info(os.path.join(path_list[0]['path'], path_list[0]['fname']))
@@ -190,7 +190,7 @@ def import_staging(bulk, path_seq_raw, fastqs=None, ref_prefix='TMP_', fastq_ext
 
     logger.info('Adding runs to table')
     if fastqs is None:
-        fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+        fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
         if labxdb.fastq.check_fastqs(fastqs) is False:
             raise Error('Name collision: Runs with the same name detected in different folder')
 
@@ -232,7 +232,7 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
         import logging as logger
 
     logger.info('Importing runs')
-    fastqs = labxdb.fastq.find_fastqs(bulk, path_seq_raw, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+    fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
     if labxdb.fastq.check_fastqs(fastqs) is False:
         raise Error('Name collision: Runs with the same name detected in different folder')
 
