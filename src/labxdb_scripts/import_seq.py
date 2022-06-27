@@ -278,7 +278,10 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
             if len(exclude_run_refs) > 0:
                 runs = [r for r in runs if r['run_ref'] not in exclude_run_refs]
             if len(runs) == 0:
-                logger.warning(f'{name} had no run')
+                if with_second_barcode:
+                    logger.warning(f'{name}-{second_barcode} had no run')
+                else:
+                    logger.warning(f'{name} had no run')
                 continue
 
         for r in runs:
