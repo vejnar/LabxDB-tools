@@ -29,13 +29,10 @@ class Error(Exception):
     def __init__(self, message):
         self.message = message
 
-def download_read_files(bulk, url_remote, path_seq_raw, config, do_format=False, download_program='wget', no_readonly=False, dry_run=False, logger=None):
+def download_read_files(url_remote, path_output, config, do_format=False, download_program='wget', no_readonly=False, dry_run=False, logger=None):
     # Parameters
     if logger is None:
         import logging as logger
-    path_output = os.path.join(path_seq_raw, bulk)
-    if do_format:
-        path_output = os.path.join(path_output, 'download')
 
     if download_program == 'wget':
         for ur in url_remote:
@@ -60,18 +57,22 @@ def download_read_files(bulk, url_remote, path_seq_raw, config, do_format=False,
     if not dry_run and do_format is False and no_readonly is False:
         os.chmod(path_output, 0o0555)
 
-def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=True, squashfs_download=False, flowcell_dir=True, fastq_exts=['.fastq'], no_readonly=False, dry_run=False, num_processor=1, logger=None):
+def format_raw_read_files(bulk, path_seq_tmp, path_seq_raw, do_format='raw', delete_download=True, squashfs_download=False, flowcell_dir=True, fastq_exts=['.fastq'], no_readonly=False, dry_run=False, num_processor=1, logger=None):
     # Parameters
     if logger is None:
         import logging as logger
 
-    fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+    # List FASTQ files
+    if path_seq_tmp is not None:
+        path_bulk = os.path.join(path_seq_tmp, bulk)
+    else:
+        path_bulk = os.path.join(path_seq_raw, bulk)
+    fastqs = labxdb.fastq.find_fastqs(path_bulk, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
     if labxdb.fastq.check_fastqs(fastqs) is False:
         raise Error('Name collision: Runs with the same name detected in different folder')
 
     # Reformat
     logger.info(f'Reformating following rule «{do_format}»')
-    path_bulk = os.path.join(path_seq_raw, bulk)
     if do_format.startswith('run_'):
         for name, path_list in fastqs.items():
             path_list_per_end = {}
@@ -106,8 +107,6 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                     else:
                         logger.info(f'Removing {p}')
                         os.remove(p)
-        # Update fastqs
-        fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
 
     # Squashfs
     path_download = os.path.join(path_bulk, 'download')
@@ -137,10 +136,12 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
             logger.info(f'Cleaning {path_download}')
             shutil.rmtree(path_download)
 
+    # Update list of FASTQ files
+    fastqs = labxdb.fastq.find_fastqs(path_bulk, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+
     # Use flowcell as bulk name
     if flowcell_dir:
         flowcells = set()
-        fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
         for name, path_list in fastqs.items():
             # Extract flowcell name from first FASTQ
             r = labxdb.fastq.get_illumina_fastq_info(os.path.join(path_list[0]['path'], path_list[0]['fname']))
@@ -172,7 +173,7 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
                 # Permission
                 if no_readonly is False:
                     os.chmod(path_new_bulk, 0o0555)
-        # Remove buck directory
+        # Remove bulk directory
         if dry_run:
             logger.info(f'DRY RUN: Removing {path_bulk}')
         else:
@@ -180,6 +181,15 @@ def format_raw_read_files(bulk, path_seq_raw, do_format='raw', delete_download=T
             shutil.rmtree(path_bulk)
         if len(flowcells) > 1:
             logger.warning(f"Data from multiple flowcells: {','.join(flowcells)}")
+    elif path_seq_tmp is not None:
+        if dry_run:
+            logger.info(f'DRY RUN: Move {path_bulk} to {path_seq_raw}')
+        else:
+            logger.info(f'Move {path_bulk} to {path_seq_raw}')
+            shutil.move(path_bulk, path_seq_raw)
+            # Permission
+            if no_readonly is False:
+                os.chmod(os.path.join(path_seq_raw, bulk), 0o0555)
 
     return fastqs
 
@@ -316,6 +326,11 @@ def check_exe(names):
         if shutil.which(name) == None:
             raise Error(f'{name} missing')
 
+def get_first_key(l, d):
+    for k in l:
+        if k in d:
+            return d[k]
+
 def main(argv=None):
     if argv is None:
         argv = sys.argv
@@ -326,6 +341,7 @@ def main(argv=None):
     group.add_argument('-y', '--format', dest='format', action='store', default='run_zstd', help='Organization/format of raw files. Supported: raw, run_zstd')
     group.add_argument('-r', '--path_seq_raw', dest='path_seq_raw', action='store', help='Path to raw seq.')
     group.add_argument('-l', '--path_seq_run', dest='path_seq_run', action='store', help='Path to run.')
+    group.add_argument('-n', '--path_seq_tmp', dest='path_seq_tmp', action='store', help='Path to temporary.')
     group.add_argument('-k', '--no_readonly', dest='no_readonly', action='store_true', help='No read-only chmod')
     group.add_argument('-d', '--dry_run', dest='dry_run', action='store_true', help='Dry run')
     group.add_argument('-p', '--processor', dest='num_processor', action='store', type=int, default=6, help='Number of processor')
@@ -352,7 +368,7 @@ def main(argv=None):
     group = parser.add_argument_group('Import')
     group.add_argument('-t', '--input_run_refs', dest='input_run_refs', action='store', help='Only import these runs (comma separated references)')
     group.add_argument('--exclude_run_refs', dest='exclude_run_refs', action='store', help='Exclude these runs from import (comma separated references)')
-    group.add_argument('--with_second_barcode', dest='with_second_barcode', action='store_true', help='Use the second barcode to identify FASTQ file.')
+    group.add_argument('--with_second_barcode', dest='with_second_barcode', action='store_true', help='Use the second barcode to identify FASTQ file(s).')
     # Step
     group = parser.add_argument_group('Step')
     group.add_argument('-g', '--make_download', dest='make_download', action='store_true', help='Download')
@@ -393,7 +409,7 @@ def main(argv=None):
     # Bulk option
     if config['make_download'] and 'bulk' not in config:
         date = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        if os.path.exists(os.path.join(config['path_seq_raw'], date)):
+        if os.path.exists(os.path.join(get_first_key(['path_seq_tmp', 'path_seq_raw'], config), date)):
             print(f'ERROR: {date} already exists')
             return 1
         else:
@@ -408,9 +424,12 @@ def main(argv=None):
         if 'path_seq_raw' not in config:
             print('ERROR: --path_seq_raw is required')
             return 1
-        # Check folder
+        # Check folders
         if not os.path.exists(config['path_seq_raw']):
             print(f"ERROR: {config['path_seq_raw']} not found")
+            return 1
+        if 'path_seq_tmp' in config and not os.path.exists(config['path_seq_tmp']):
+            print(f"ERROR: {config['path_seq_tmp']} not found")
             return 1
     if config['make_import']:
         # Check option
@@ -433,10 +452,11 @@ def main(argv=None):
 
     # Format
     if not config['dry_run'] and config['make_format']:
-        for p in [os.path.join(config['path_seq_raw'], config['bulk']), os.path.join(config['path_seq_raw'], config['bulk'], 'download')]:
+        path_format = os.path.join(get_first_key(['path_seq_tmp', 'path_seq_raw'], config), config['bulk'])
+        for p in [path_format, os.path.join(path_format, 'download')]:
             if not os.path.exists(p):
                 os.mkdir(p)
-        log_filename = os.path.join(config['path_seq_raw'], config['bulk'], 'download', 'format.log')
+        log_filename = os.path.join(path_format, 'download', 'format.log')
     else:
         log_filename = None
 
@@ -448,8 +468,11 @@ def main(argv=None):
         # Download
         if config['make_download']:
             if 'url_remote' not in config:
-                raise Error('Missing remote path.')
-            download_read_files(config['bulk'], config['url_remote'], config['path_seq_raw'], config, config['make_format'], download_program=config['download_program'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], logger=logger)
+                raise Error('Missing remote path')
+            path_download = os.path.join(get_first_key(['path_seq_tmp', 'path_seq_raw'], config), config['bulk'])
+            if config['make_format']:
+                path_download = os.path.join(path_download, 'download')
+            download_read_files(config['url_remote'], path_download, config, config['make_format'], download_program=config['download_program'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], logger=logger)
 
         # Import
         fastqs = None
@@ -461,7 +484,7 @@ def main(argv=None):
                     config['labxdb_http_db'] = 'seq'
             dbl = labxdb.DBLink(config.get('labxdb_http_url'), config.get('labxdb_http_login'), config.get('labxdb_http_password'), config.get('labxdb_http_path'), config.get('labxdb_http_db'))
         if config['make_format']:
-            fastqs = format_raw_read_files(config['bulk'], config['path_seq_raw'], do_format=config['format'], delete_download=config['delete_download'], squashfs_download=config['squashfs_download'], flowcell_dir=config['flowcell_dir'], fastq_exts=config['fastq_exts'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], num_processor=config['num_processor'], logger=logger)
+            fastqs = format_raw_read_files(config['bulk'], config.get('path_seq_tmp'), config['path_seq_raw'], do_format=config['format'], delete_download=config['delete_download'], squashfs_download=config['squashfs_download'], flowcell_dir=config['flowcell_dir'], fastq_exts=config['fastq_exts'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], num_processor=config['num_processor'], logger=logger)
         if config['make_staging']:
             import_staging(config['bulk'], config['path_seq_raw'], fastqs=fastqs, ref_prefix=config['ref_prefix'], fastq_exts=config['fastq_exts'], dry_run=config['dry_run'], dbl=dbl, logger=logger)
         if config['make_import']:
