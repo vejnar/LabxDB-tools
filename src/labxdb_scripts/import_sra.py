@@ -269,10 +269,10 @@ def main(argv=None):
         add_samples(project['samples'], config['project'], project['title'], dbl)
     if config['dump_sra']:
         print('Dump from SRA')
-        dump_sra(samples, config, dbl)
+        dump_sra(project['samples'], config, dbl)
     if config['create_links']:
         print('Create links')
-        create_links(samples, config)
+        create_links(project['samples'], config)
 
 if __name__ == '__main__':
     sys.exit(main())
