@@ -73,7 +73,7 @@ def get_illumina_fastq_info(ilmn_fastq, get_spots=False):
     else:
         fqf = open(ilmn_fastq, 'rt', buffering=1024*1024)
     line = fqf.readline().rstrip('\n\r')
-    assert line.startswith('@'), 'Invalid FASTQ header: %s'%(line)
+    assert line.startswith('@'), f'Invalid FASTQ header: {line} in {ilmn_fastq}'
     seq_ids = line.split()
 
     # Info
