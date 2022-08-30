@@ -266,7 +266,7 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
             # Second barcode
             if with_second_barcode:
                 name_parts = name.split('-')
-                name = ''.join(name_parts[:-1])
+                name = '-'.join(name_parts[:-1])
                 second_barcode = name_parts[-1]
                 search_criterion.append('3 second_barcode EQUAL '+second_barcode)
             # Tube label
