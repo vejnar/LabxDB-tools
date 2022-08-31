@@ -454,14 +454,20 @@ def main(argv=None):
             check_exe(['mksquashfs'])
 
     # Format
-    if not config['dry_run'] and config['make_format']:
-        path_format = os.path.join(get_first_key(['path_seq_tmp', 'path_seq_raw'], config), config['bulk'])
-        for p in [path_format, os.path.join(path_format, 'download')]:
+    path_format = os.path.join(get_first_key(['path_seq_tmp', 'path_seq_raw'], config), config['bulk'])
+    path_download = os.path.join(path_format, 'download')
+    if not config['dry_run'] and (config['make_download'] or config['make_format']):
+        for p in [path_format, path_download]:
             if not os.path.exists(p):
                 os.mkdir(p)
-        log_filename = os.path.join(path_format, 'download', 'format.log')
+        log_filename = os.path.join(path_download, 'format.log')
     else:
         log_filename = None
+
+    # Check permissions
+    if not config['make_download'] and config['make_format'] and not os.access(path_download, os.W_OK):
+        print(f"ERROR: {path_download} not writable")
+        return 1
 
     # Logging
     logger = pfu.log.define_root_logger(f"load_{config['bulk']}", level='info', filename=log_filename)
@@ -472,9 +478,6 @@ def main(argv=None):
         if config['make_download']:
             if 'url_remote' not in config:
                 raise Error('Missing remote path')
-            path_download = os.path.join(get_first_key(['path_seq_tmp', 'path_seq_raw'], config), config['bulk'])
-            if config['make_format']:
-                path_download = os.path.join(path_download, 'download')
             download_read_files(config['url_remote'], path_download, config, config['make_format'], download_program=config['download_program'], no_readonly=config['no_readonly'], dry_run=config['dry_run'], logger=logger)
 
         # Import
