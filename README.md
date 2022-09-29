@@ -1,6 +1,6 @@
-# LabxDB Python
+# LabxDB tools
 
-Classes and scripts written in Python for [LabxDB](https://labxdb.vejnar.org).
+Classes and tools written in Python for [LabxDB](https://labxdb.vejnar.org).
 
 ## Download
 
@@ -9,7 +9,7 @@ See [tags](/../../tags) page.
 ## Install
 
 ```bash
-pip3 install labxdb
+pip3 install labxdb-tools
 ```
 
 ## License
