@@ -16,4 +16,4 @@ pip3 install labxdb-tools
 
 *LabxDB* is distributed under the Mozilla Public License Version 2.0 (see /LICENSE).
 
-Copyright (C) 2018-2022 Charles E. Vejnar
+Copyright © 2018-2023 Charles E. Vejnar
