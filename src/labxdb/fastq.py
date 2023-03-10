@@ -30,6 +30,13 @@ def parse_fastq_filename(fname):
     else:
         return None
 
+def parse_no_end_fastq_filename(fname):
+    m = re.match('(.+)\.fastq', fname)
+    if m:
+        return {'name':m.group(1), 'end':None}
+    else:
+        return None
+
 def find_fastqs(path_seq, fastq_exts=['.fastq'], fastq_fns=[parse_fastq_filename]):
     fastqs = {}
     for path, dirs, files in os.walk(path_seq, followlinks=True):
@@ -59,49 +66,83 @@ def check_fastqs(fastqs):
             return False
     return True
 
-def get_illumina_fastq_info(ilmn_fastq, get_spots=False):
+def get_illumina_fastq_info(line):
     """Queries the first entry in the fastq file and reports information, assuming Illumina semantics:
 
-    flowcell, lane, pair number, read length, barcode
+    instrument, run number, flowcell, lane, pair number, read length, barcode
     @DCM97JN1:188:C11R8ACXX:5:1101:1208:2164 1:N:0:GCTCATGA
     """
+    try:
+        info = {}
+
+        # Get info from ID
+        seq_ids = line.split()
+        if len(seq_ids) == 2:
+            identifier, meta = seq_ids
+        else:
+            identifier, meta = seq_ids[0], None
+        id_fields = identifier.split(':')
+
+        info['instrument'] = id_fields[0][1:]
+        info['run number'] = id_fields[1]
+        info['flowcell'] = id_fields[2]
+        info['lane'] = int(id_fields[3])
+        if meta:
+            info['pair'] = int(meta[0])
+            info['barcode'] = meta.split(':')[-1]
+        else:
+            info['pair'] = int(id_fields[-1][0])
+            info['barcode'] = None
+
+        return info
+    except:
+        return None
+
+def get_pacbio_fastq_info(line):
+    """Queries the first entry in the fastq file and reports information, assuming PacBio semantics:
+
+    {movieName}/{holeNumber}/ccs
+    """
+
+    try:
+        info = {}
+
+        # Get info from ID
+        seq_ids = line.split('/')
+        if len(seq_ids) >= 3:
+            info['flowcell'] = seq_ids[0][1:]
+
+        return info
+    except:
+        return None
+
+def get_fastq_info(path_seq, fastq_fns=[get_illumina_fastq_info, get_pacbio_fastq_info], get_spots=False):
     # Get first read ID
-    if ilmn_fastq.endswith('.gz'):
-        fqf = gzip.open(ilmn_fastq, 'rt')
-    elif ilmn_fastq.endswith('.zst'):
-        fqf = pfu.zstd.open(ilmn_fastq, 'rt')
+    if path_seq.endswith('.gz'):
+        fqf = gzip.open(path_seq, 'rt')
+    elif path_seq.endswith('.zst'):
+        fqf = pfu.zstd.open(path_seq, 'rt')
     else:
-        fqf = open(ilmn_fastq, 'rt', buffering=1024*1024)
+        fqf = open(path_seq, 'rt', buffering=1024*1024)
     line = fqf.readline().rstrip('\n\r')
-    assert line.startswith('@'), f'Invalid FASTQ header: {line} in {ilmn_fastq}'
-    seq_ids = line.split()
+    assert line.startswith('@'), f'Invalid FASTQ header: {line} in {path_seq}'
 
     # Info
-    infos = {}
+    info = {}
+    for fastq_fn in fastq_fns:
+        m = fastq_fn(line)
+        if m is not None:
+            info = m
+            break
 
     # Get first sequence
     seq = fqf.readline().rstrip('\n\r')
-    infos['read_length'] = len(seq)
-
-    # Get info from ID
-    if len(seq_ids) == 2:
-        identifier, meta = seq_ids
-    else:
-        identifier, meta = seq_ids[0], None
-    id_fields = identifier.split(':')
-    infos['flowcell'] = ':'.join(id_fields[:-4])[1:]
-    infos['lane'] = int(id_fields[-4])
-    if meta:
-        infos['pair'] = int(meta[0])
-        infos['barcode'] = meta.split(':')[-1]
-    else:
-        infos['pair'] = int(id_fields[-1][0])
-        infos['barcode'] = None
+    info['read_length'] = len(seq)
 
     # Get number of spots
     if get_spots:
         nread = 1 # One read already
-        max_len = infos['read_length']
+        max_len = info['read_length']
         while True:
             try:
                 read = [next(fqf) for i in range(4)]
@@ -111,10 +152,10 @@ def get_illumina_fastq_info(ilmn_fastq, get_spots=False):
             if l > max_len:
                 max_len = l
             nread += 1
-        infos['spots'] = nread
-        infos['read_length'] = max_len
+        info['spots'] = nread
+        info['read_length'] = max_len
 
     # Close FASTQ
     fqf.close()
 
-    return infos
+    return info

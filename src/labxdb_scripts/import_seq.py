@@ -67,7 +67,7 @@ def format_raw_read_files(bulk, path_seq_tmp, path_seq_raw, do_format='raw', del
         path_bulk = os.path.join(path_seq_tmp, bulk)
     else:
         path_bulk = os.path.join(path_seq_raw, bulk)
-    fastqs = labxdb.fastq.find_fastqs(path_bulk, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+    fastqs = labxdb.fastq.find_fastqs(path_bulk, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename, labxdb.fastq.parse_no_end_fastq_filename])
     if labxdb.fastq.check_fastqs(fastqs) is False:
         raise Error('Name collision: Runs with the same name detected in different folder')
 
@@ -82,7 +82,10 @@ def format_raw_read_files(bulk, path_seq_tmp, path_seq_raw, do_format='raw', del
                 else:
                     path_list_per_end[p['end']] = [os.path.join(p['path'], p['fname'])]
             for end, paths in path_list_per_end.items():
-                fname_out = os.path.join(path_bulk, f'{name}_{end}.fastq')
+                if end is None:
+                    fname_out = os.path.join(path_bulk, f'{name}.fastq')
+                else:
+                    fname_out = os.path.join(path_bulk, f'{name}_{end}.fastq')
                 # Concatenate
                 cmd = ' '.join(['zcat'] + paths + ['>', fname_out])
                 if dry_run:
@@ -137,15 +140,15 @@ def format_raw_read_files(bulk, path_seq_tmp, path_seq_raw, do_format='raw', del
             shutil.rmtree(path_download)
 
     # Update list of FASTQ files
-    fastqs = labxdb.fastq.find_fastqs(path_bulk, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+    fastqs = labxdb.fastq.find_fastqs(path_bulk, fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename, labxdb.fastq.parse_no_end_fastq_filename])
 
     # Use flowcell as bulk name
     if flowcell_dir:
         flowcells = set()
         for name, path_list in fastqs.items():
             # Extract flowcell name from first FASTQ
-            r = labxdb.fastq.get_illumina_fastq_info(os.path.join(path_list[0]['path'], path_list[0]['fname']))
-            flowcell = r['flowcell'].split(':')[2]
+            fastq_info = labxdb.fastq.get_fastq_info(os.path.join(path_list[0]['path'], path_list[0]['fname']), [labxdb.fastq.get_illumina_fastq_info, labxdb.fastq.get_pacbio_fastq_info])
+            flowcell = fastq_info['flowcell']
             flowcells.add(flowcell)
             # Create new flowcell directory
             path_new_bulk = os.path.join(path_seq_raw, flowcell)
@@ -200,23 +203,23 @@ def import_staging(bulk, path_seq_raw, fastqs=None, ref_prefix='TMP_', fastq_ext
 
     logger.info('Adding runs to table')
     if fastqs is None:
-        fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+        fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename, labxdb.fastq.parse_no_end_fastq_filename])
         if labxdb.fastq.check_fastqs(fastqs) is False:
             raise Error('Name collision: Runs with the same name detected in different folder')
 
     irun = 1
     for name, path_list in fastqs.items():
-        fastq_infos = labxdb.fastq.get_illumina_fastq_info(os.path.join(path_list[0]['path'], path_list[0]['fname']))
+        fastq_info = labxdb.fastq.get_fastq_info(os.path.join(path_list[0]['path'], path_list[0]['fname']), [labxdb.fastq.get_illumina_fastq_info, labxdb.fastq.get_pacbio_fastq_info])
         # Max read length & Pair & Spots
         max_read_length = 0
         max_pair = 0
         spots = 0
         end = None
         for p in path_list:
-            r = labxdb.fastq.get_illumina_fastq_info(os.path.join(p['path'], p['fname']), get_spots=True)
+            r = labxdb.fastq.get_fastq_info(os.path.join(p['path'], p['fname']), get_spots=True)
             if r['read_length'] > max_read_length:
                 max_read_length = r['read_length']
-            if r['pair'] > max_pair:
+            if 'pair' in r and r['pair'] > max_pair:
                 max_pair = r['pair']
             # Keep the name of first end
             if end is None:
@@ -230,10 +233,10 @@ def import_staging(bulk, path_seq_raw, fastqs=None, ref_prefix='TMP_', fastq_ext
         else:
             paired = False
         if dry_run:
-            logger.info(f"DRY RUN: Adding {name} ({fastq_infos['flowcell']},{fastq_infos['barcode']},{max_read_length},paired:{paired})")
+            logger.info(f"DRY RUN: Adding {name} ({fastq_info['flowcell']},{fastq_info.get('barcode')},{max_read_length},paired:{paired})")
         else:
             logger.info(f'Adding run {name}')
-            dbl.post('run/new', json=[{'run_ref':f'{ref_prefix}{irun:03}', 'run_order':1, 'tube_label':name, 'barcode':fastq_infos['barcode'], 'failed':False, 'flowcell':fastq_infos['flowcell'], 'paired':paired, 'max_read_length':max_read_length, 'spots':spots}])
+            dbl.post('run/new', json=[{'run_ref':f'{ref_prefix}{irun:03}', 'run_order':1, 'tube_label':name, 'barcode':fastq_info.get('barcode'), 'failed':False, 'flowcell':fastq_info['flowcell'], 'paired':paired, 'max_read_length':max_read_length, 'spots':spots}])
         irun += 1
 
 def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_run_refs=[], exclude_run_refs=[], path_seq_run='.', print_summary=True, fastq_exts=['.fastq'], no_readonly=False, dry_run=False, dbl=None, config=None, num_processor=1, logger=None):
@@ -242,7 +245,7 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
         import logging as logger
 
     logger.info('Importing runs')
-    fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename])
+    fastqs = labxdb.fastq.find_fastqs(os.path.join(path_seq_raw, bulk), fastq_exts, [labxdb.fastq.parse_illumina_fastq_filename, labxdb.fastq.parse_fastq_filename, labxdb.fastq.parse_no_end_fastq_filename])
     if labxdb.fastq.check_fastqs(fastqs) is False:
         raise Error('Name collision: Runs with the same name detected in different folder')
 
@@ -256,8 +259,8 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
             # Flowcell
             flowcells = set()
             for p in path_list:
-                r = labxdb.fastq.get_illumina_fastq_info(os.path.join(p['path'], p['fname']))
-                flowcells.add(r['flowcell'])
+                fastq_info = labxdb.fastq.get_fastq_info(os.path.join(p['path'], p['fname']), [labxdb.fastq.get_illumina_fastq_info, labxdb.fastq.get_pacbio_fastq_info])
+                flowcells.add(fastq_info['flowcell'])
             if len(flowcells) == 1:
                 flowcell = list(flowcells)[0]
                 search_criterion.append('3 flowcell FUZZY '+flowcell)
@@ -321,7 +324,7 @@ def import_raw_read_files(bulk, path_seq_raw, with_second_barcode=False, input_r
         for runs in done_runs:
             for r in runs:
                 if r['done']:
-                    print(f"{r['tube_label']:<30}{r['flowcell']:<30}{r['barcode']:<30}{r['run_ref']:<15}{r['path_list'][0]['path']:<30}")
+                    print(f"{r['tube_label']:<40}{r['flowcell']:<30}{str(r['barcode']):<30}{r['run_ref']:<15}{r['path_list'][0]['path']:<30}")
         print()
 
 def check_exe(names):
