@@ -183,6 +183,10 @@ def get_multiplex_sample_fields(label_filters, multiplex):
 def library_strategy(infos):
     if infos['sample']['library_protocol'] == 'dUTP':
         return 'RNA-seq'
+    elif infos['sample']['selection'] == 'ChIP':
+        return 'ChIP-seq'
+    elif infos['sample']['selection'] == 'ATAC':
+        return 'ATAC-seq'
     else:
         return 'OTHER'
 
