@@ -234,7 +234,9 @@ def get_data_fields(label_filters):
             'instrument_model': {'column': ('run', 'platform')},
             'filetype': {'default': 'fastq'},
             'filename': {'fn': filename},
-            'filename2': {'fn': filename2}}
+            'filename2': {'fn': filename2},
+            'filename3': {'default': None},
+            'filename4': {'default': None}}
 
 def get_multiplex_data_fields(label_filters):
     c = get_data_fields(label_filters)
@@ -436,9 +438,7 @@ def main(argv=None):
             drecord = get_record(data_fields, {'run':run, 'replicate':replicate, 'sample':sample_infos[replicate['sample_ref']], 'project':project_infos[replicate['project_ref']]})
             data_records.append(drecord)
             # Data
-            data_files.append({'type':'single', 'run_ref':run['run_ref'], 'pattern':'_R1.fastq'})
-            if run['paired']:
-                data_files.append({'type':'single', 'run_ref':run['run_ref'], 'pattern':'_R2.fastq'})
+            data_files.append({'type':'single', 'run_ref':run['run_ref']})
 
             # Multiplex run
             if config['export_multiplex'] and run['second_barcode'] is not None:
@@ -465,9 +465,7 @@ def main(argv=None):
             # Data record
             data_records.append(get_multiplex_record(data_fields, mruns, flowcell_alias, tube_label, unexported_barcodes))
             # Data
-            data_files.append({'type':'multiplex', 'flowcell':flowcell_alias, 'tube_label':tube_label, 'pattern':'_R1.fastq'})
-            if run['paired']:
-                data_files.append({'type':'multiplex', 'flowcell':flowcell_alias, 'tube_label':tube_label, 'pattern':'_R2.fastq'})
+            data_files.append({'type':'multiplex', 'flowcell':flowcell_alias, 'tube_label':tube_label})
             
             # Multiplex sample
             key = tuple([m['run']['replicate_ref'] for m in mruns])
