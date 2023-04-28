@@ -208,7 +208,7 @@ def platform(infos):
     if infos['run']['platform'].find('Illumina') != -1:
         return 'ILLUMINA'
     elif infos['run']['platform'].find('PacBio') != -1:
-        return 'PacBio'
+        return 'PACBIO_SMRT'
 
 def filename(infos):
     return infos['run']['run_ref']+'_R1.fastq.gz'
